@@ -16,7 +16,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 @RestController
@@ -45,8 +47,55 @@ public class MediaController {
     @PostMapping("/init-upload")
     public ResponseEntity<String> initUpload() {
         String uploadId = mediaService.initChunkedUpload();
-        // TODO 分片上传接口，前端会传 uploadId 和分片数据，后端需要根据 uploadId 找到对应的 MinIO 上传会话，继续上传分片
         return ResponseEntity.ok(uploadId);
+    }
+
+    @PostMapping("/upload-chunk")
+    public ResponseEntity<?> uploadChunk(@RequestParam("uploadId") String uploadId,
+                                         @RequestParam("chunkIndex") Integer chunkIndex,
+                                         @RequestParam("file") MultipartFile file) {
+        try {
+            Map<String, Object> result = mediaService.saveChunk(uploadId, chunkIndex, file);
+            return ResponseEntity.ok(result);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body("chunk upload failed: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/upload-progress")
+    public ResponseEntity<Map<String, Object>> uploadProgress(@RequestParam("uploadId") String uploadId,
+                                                              @RequestParam(value = "totalChunks", required = false) Integer totalChunks) {
+        List<Integer> uploaded = mediaService.getUploadedChunks(uploadId);
+        Map<String, Object> data = new HashMap<>();
+        data.put("uploadId", uploadId);
+        data.put("uploadedChunks", uploaded);
+        data.put("uploadedCount", uploaded.size());
+        if (totalChunks != null && totalChunks > 0) {
+            data.put("totalChunks", totalChunks);
+            data.put("completed", uploaded.size() >= totalChunks);
+        }
+        return ResponseEntity.ok(data);
+    }
+
+    @PostMapping("/complete-upload")
+    public ResponseEntity<?> completeUpload(@RequestParam("uploadId") String uploadId,
+                                            @RequestParam("filename") String filename,
+                                            @RequestParam("totalChunks") Integer totalChunks,
+                                            @RequestParam(value = "userId", required = false) Long userId) {
+        try {
+            Map<String, Object> result = mediaService.completeChunkedUpload(uploadId, filename, totalChunks, userId);
+            return ResponseEntity.ok(result);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(409).body(e.getMessage());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body("complete upload failed: " + e.getMessage());
+        }
     }
 
 
