@@ -16,7 +16,7 @@ public class RedissonConfig {
     @Value("${redisson.password:}")
     private String password;
 
-    @Value("${redisson.database:0}")
+    @Value("${redisson.database}")
     private int database;
 
     @Bean(destroyMethod = "shutdown")

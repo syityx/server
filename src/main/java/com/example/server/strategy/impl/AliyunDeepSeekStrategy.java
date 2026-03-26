@@ -69,10 +69,10 @@ public class AliyunDeepSeekStrategy implements AiAnalysisStrategy {
             e.printStackTrace();
             return "处理异常: " + e.getMessage();
         } finally {
-//            // 5. 清理临时文件
-//            File mp3 = new File(outputMp3Path);
-//            if (mp3.exists()) mp3.delete();
-            log.info("🎵 [AI策略] 已完成处理，临时文件未删除以便调试: {}", outputMp3Path);
+            // 5. 清理临时文件
+            File mp3 = new File(outputMp3Path);
+            if (mp3.exists()) mp3.delete();
+            log.info("🎵 [AI策略] 已完成处理，删除临时文件: {}", outputMp3Path);
         }
     }
 

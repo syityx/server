@@ -7,6 +7,10 @@ import com.example.server.service.AiService;
 import com.example.server.strategy.AiAnalysisStrategy;
 import com.example.server.utils.SimpleRedisLock;
 import org.redisson.api.RedissonClient;
+import org.redisson.api.RLock;
+import org.redisson.api.RRateLimiter;
+import org.redisson.api.RateType;
+import org.redisson.api.RateIntervalUnit;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,6 +37,10 @@ import java.util.concurrent.TimeUnit;
 @CrossOrigin(originPatterns = "*", allowCredentials = "true")
 public class DebugController {
 
+    private static final String AI_LIMIT_KEY = "limit:ai:global";
+    private static final long AI_LIMIT_RATE = 10;
+    private static final long AI_LIMIT_INTERVAL = 1;
+
     @Autowired
     private MediaFileMapper mediaFileMapper;
 
@@ -53,34 +61,28 @@ public class DebugController {
 //    @Autowired
 //    private org.apache.rocketmq.spring.core.RocketMQTemplate rocketMQTemplate;
 
-//    @Autowired
-//    private RedissonClient redissonClient;
+    @Autowired
+    private RedissonClient redissonClient;
 
     //AI总结接口(分布式锁 + 限流 + MQ)
     @GetMapping("/ai")
     public String aiAnalyze(@RequestParam Long id) {
         //【Redisson 分布式锁】防瞬时并发连点
         String lockKey = "lock:analyze:" + id;
-//        org.redisson.api.RLock lock = redissonClient.getLock(lockKey);
-        SimpleRedisLock lock = new SimpleRedisLock(lockKey, redisTemplate);
-        boolean b = lock.tryLock(1000);
+        RLock lock = redissonClient.getLock(lockKey);
+//        SimpleRedisLock lock = new SimpleRedisLock(lockKey, redisTemplate);
+//        boolean b = lock.tryLock(1000);
 
         try {
-            if (!lock.tryLock(0)) {
+            if (!lock.tryLock(0, -1, TimeUnit.SECONDS)) {
                 return "⚠️ 任务提交中，请勿重复点击！";
             }
 
-//
-//            // 这里演示：全局限制每分钟只能分析 10 次 (防止费用爆炸)
-//            String limitKey = "limit:ai:global";
-//            org.redisson.api.RRateLimiter rateLimiter = redissonClient.getRateLimiter(limitKey);
-//            //初始化：每 1 分钟产生 10 个令牌 (RateType.OVERALL 全局, OVER_CLIENT 是单机)
-//            rateLimiter.trySetRate(org.redisson.api.RateType.OVERALL, 10, 1, org.redisson.api.RateIntervalUnit.MINUTES);
-//
-//            //尝试获取 1 个令牌
-//            if (!rateLimiter.tryAcquire(1)) {
-//                return "⚠️ 系统繁忙(限流中)，请 1 分钟后再试！";
-//            }
+
+            // 尝试获取全局令牌，限制 AI 分析调用速率
+            if (!tryAcquireAiToken()) {
+                return "⚠️ 系统繁忙(限流中)，请 1 分钟后再试！";
+            }
 
             //查库校验
             MediaFile file = mediaFileMapper.selectById(id);
@@ -105,11 +107,11 @@ public class DebugController {
             e.printStackTrace();
             return "❌ 提交失败: " + e.getMessage();
         } finally {
-//            if (lock.isHeldByCurrentThread()) {
-//                lock.unlock();
-//            }
-            // TODO redisson的isHeldByCurrentThread
-            lock.unlock();
+            if (lock.isHeldByCurrentThread()) {
+                lock.unlock();
+            }
+            // redisson的isHeldByCurrentThread
+//            lock.unlock();
         }
     }
 
@@ -146,6 +148,14 @@ public class DebugController {
                 || normalized.contains("失败")
                 || normalized.contains("异常")
                 || normalized.contains("ffmpeg 转换失败");
+    }
+
+    private boolean tryAcquireAiToken() {
+        RRateLimiter rateLimiter = redissonClient.getRateLimiter(AI_LIMIT_KEY);
+        if (!rateLimiter.isExists()) {
+            rateLimiter.trySetRate(RateType.OVERALL, AI_LIMIT_RATE, AI_LIMIT_INTERVAL, RateIntervalUnit.MINUTES);
+        }
+        return rateLimiter.tryAcquire(1);
     }
 
     //下载音频接口
