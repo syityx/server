@@ -78,7 +78,8 @@ public class DeepSeekUtils {
 
         // 3. 组装 JSON 参数
         JSONObject jsonBody = new JSONObject();
-        jsonBody.put("model", "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"); // 或者是 deepseek-ai/DeepSeek-R1 (看你账号支持哪个)
+//        jsonBody.put("model", "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"); // 或者是 deepseek-ai/DeepSeek-R1 (看你账号支持哪个)
+        jsonBody.put("model", "Pro/zai-org/GLM-4.7");
         jsonBody.put("stream", false);
 
         JSONArray messages = new JSONArray();

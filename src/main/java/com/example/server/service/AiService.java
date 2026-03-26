@@ -31,7 +31,7 @@ public class AiService {
         if (mediaFile == null) return;
 
         try {
-            // 1. 语音转文字
+            // 1. 语音转文字(ffmpeg)
             String text = aiAnalysisStrategy.transcribe(mediaFile.getFilePath());
             mediaFile.setTranscriptText(text);
 

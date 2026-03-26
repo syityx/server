@@ -32,7 +32,7 @@ public class AliyunAsrUtils {
 
         for (int i = 0; i < maxRetries; i++) {
             try {
-                System.out.println("🎤 [ASR] 上传中 (第 " + (i + 1) + " 次尝试)...");
+                System.out.println("🎤 [ASR-text] 上传中 (第 " + (i + 1) + " 次尝试)...");
 
                 RequestBody requestBody = new MultipartBody.Builder()
                         .setType(MultipartBody.FORM)

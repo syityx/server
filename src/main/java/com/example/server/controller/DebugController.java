@@ -6,6 +6,7 @@ import com.example.server.mapper.MediaFileMapper;
 import com.example.server.service.AiService;
 import com.example.server.strategy.AiAnalysisStrategy;
 import com.example.server.utils.SimpleRedisLock;
+import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.redisson.api.RedissonClient;
 import org.redisson.api.RLock;
 import org.redisson.api.RRateLimiter;
@@ -58,8 +59,8 @@ public class DebugController {
     @Value("${app.ffmpeg.path:ffmpeg}")
     private String ffmpegPath;
 
-//    @Autowired
-//    private org.apache.rocketmq.spring.core.RocketMQTemplate rocketMQTemplate;
+    @Autowired
+    private RocketMQTemplate rocketMQTemplate;
 
     @Autowired
     private RedissonClient redissonClient;
@@ -88,6 +89,7 @@ public class DebugController {
             MediaFile file = mediaFileMapper.selectById(id);
             if (file == null) return "文件不存在";
             if (file.getAiSummary() != null && file.getAiSummary().contains("正在")) {
+                // TODO 有重复投递风险，contains不足以完全避免，但已经能防大多数重复点击了；如果要完全避免，需要在数据库里专门加个字段来标记“分析中”，并且在投递消息前后都检查这个字段，确保原子性。
                 return "任务已在后台运行，无需重复提交";
             }
 
@@ -99,7 +101,7 @@ public class DebugController {
 
             //发送消息
             AnalysisTaskMsg msg = new AnalysisTaskMsg(id, "START_ANALYSIS");
-//            rocketMQTemplate.convertAndSend("video-analysis-topic", msg);
+            rocketMQTemplate.convertAndSend("video-analysis-topic", msg);
 
             return "✅ 任务已投递至 RocketMQ！";
 
