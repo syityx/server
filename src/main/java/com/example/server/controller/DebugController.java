@@ -9,6 +9,7 @@ import com.example.server.utils.SimpleRedisLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -23,6 +24,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -44,6 +46,9 @@ public class DebugController {
 
     @Autowired
     private StringRedisTemplate redisTemplate;
+
+    @Value("${app.ffmpeg.path:ffmpeg}")
+    private String ffmpegPath;
 
 //    @Autowired
 //    private org.apache.rocketmq.spring.core.RocketMQTemplate rocketMQTemplate;
@@ -114,10 +119,33 @@ public class DebugController {
         MediaFile mediaFile = mediaFileMapper.selectById(id);
         if (mediaFile == null) return "❌ 找不到文件记录";
 
+        String transcript = mediaFile.getTranscriptText();
+        if (transcript != null && !transcript.isBlank()) {
+            if (isTranscribeRunning(transcript)) {
+                return "⚠️ 任务正在提取中，请稍后刷新结果";
+            }
+            if (!isTranscribeFailed(transcript)) {
+                return "✅ 当前记录已有可用字幕，无需重复提取";
+            }
+        }
+
         // 调用异步服务
         aiService.asyncTranscribe(id);
 
         return "✅ 提取任务已后台运行！请稍后查看结果。";
+    }
+
+    private boolean isTranscribeRunning(String transcript) {
+        String normalized = transcript.toLowerCase(Locale.ROOT);
+        return normalized.contains("提取中") || normalized.contains("正在");
+    }
+
+    private boolean isTranscribeFailed(String transcript) {
+        String normalized = transcript.toLowerCase(Locale.ROOT);
+        return normalized.startsWith("❌")
+                || normalized.contains("失败")
+                || normalized.contains("异常")
+                || normalized.contains("ffmpeg 转换失败");
     }
 
     //下载音频接口
@@ -157,7 +185,7 @@ public class DebugController {
     private boolean runFfmpeg(String inputPath, String outputPath) {
         try {
             List<String> command = new ArrayList<>();
-            command.add("ffmpeg");
+            command.add(ffmpegPath);
             command.add("-y");
             command.add("-i");
             command.add(inputPath);

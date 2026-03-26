@@ -6,6 +6,7 @@ import com.example.server.utils.MinioUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.BufferedInputStream;
@@ -37,6 +38,9 @@ public class MediaService {
 
     @Autowired
     private MinioUtils minioUtils;
+
+    @Value("${app.ffmpeg.path:ffmpeg}")
+    private String ffmpegPath;
 
     private final String UPLOAD_DIR = "D:/Project/MediaApp/uploads/";
     private static final String CHUNK_UPLOAD_KEY_PREFIX = "upload:chunked:";
@@ -232,7 +236,7 @@ public class MediaService {
         file.transferTo(inputFile);
 
         List<String> command = new ArrayList<>();
-        command.add("ffmpeg");
+        command.add(ffmpegPath);
         command.add("-i");
         command.add(inputFile.getAbsolutePath());
         command.add("-vn");

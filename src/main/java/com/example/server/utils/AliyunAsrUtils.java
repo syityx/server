@@ -39,7 +39,8 @@ public class AliyunAsrUtils {
                         .addFormDataPart("file", file.getName(),
                                 RequestBody.create(file, MediaType.parse("application/octet-stream")))
                         // 【核心修改】换成电信的大模型，更稳，准确率更高
-                        .addFormDataPart("model", "TeleAI/TeleSpeechASR")
+//                        .addFormDataPart("model", "TeleAI/TeleSpeechASR")
+                        .addFormDataPart("model", "FunAudioLLM/SenseVoiceSmall")
                         .build();
 
                 Request request = new Request.Builder()

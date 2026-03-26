@@ -81,6 +81,9 @@ public class AiService {
         if (mediaFile == null) return;
 
         try {
+            mediaFile.setTranscriptText("[TRANSCRIBE] 提取中...");
+            mediaFileMapper.updateById(mediaFile);
+
             //只做语音转文字
             String text = aiAnalysisStrategy.transcribe(mediaFile.getFilePath());
             mediaFile.setTranscriptText(text);
@@ -98,6 +101,12 @@ public class AiService {
         } catch (Exception e) {
             e.printStackTrace();
             System.err.println(" [线程池] 提取失败: " + e.getMessage());
+
+            mediaFile.setTranscriptText("❌ 提取异常: " + e.getMessage());
+            mediaFileMapper.updateById(mediaFile);
+
+            String userIdStr = (mediaFile.getUserId() == null) ? "anon" : String.valueOf(mediaFile.getUserId());
+            redisTemplate.delete("media:list:user:" + userIdStr);
         }
     }
 }

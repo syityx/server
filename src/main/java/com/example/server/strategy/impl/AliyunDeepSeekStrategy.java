@@ -3,7 +3,9 @@ package com.example.server.strategy.impl;
 import com.example.server.strategy.AiAnalysisStrategy;
 import com.example.server.utils.AliyunAsrUtils;
 import com.example.server.utils.DeepSeekUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
@@ -12,6 +14,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Component("defaultAiStrategy")
+@Slf4j
 public class AliyunDeepSeekStrategy implements AiAnalysisStrategy {
 
     @Autowired
@@ -19,6 +22,9 @@ public class AliyunDeepSeekStrategy implements AiAnalysisStrategy {
 
     @Autowired
     private DeepSeekUtils deepSeekUtils;
+
+    @Value("${app.ffmpeg.path:ffmpeg}")
+    private String ffmpegPath;
 
     @Override
     public String transcribe(String videoPath) {
@@ -45,7 +51,8 @@ public class AliyunDeepSeekStrategy implements AiAnalysisStrategy {
         }
 
         //准备临时 MP3 路径 (放在系统临时目录下)
-        String outputMp3Path = System.getProperty("java.io.tmpdir") + File.separator + "temp_" + UUID.randomUUID() + ".mp3";
+        String outputMp3Path = System.getProperty("java.io.tmpdir") + File.separator + "ZVideo_temp_" + UUID.randomUUID() + ".mp3";
+        log.info("🎵 [AI策略] 输入路径: {}, 临时 MP3 路径: {}", inputPath, outputMp3Path);
 
         try {
             System.out.println("🎵 [AI策略] 正在处理视频源: " + inputPath);
@@ -62,9 +69,10 @@ public class AliyunDeepSeekStrategy implements AiAnalysisStrategy {
             e.printStackTrace();
             return "处理异常: " + e.getMessage();
         } finally {
-            // 5. 清理临时文件
-            File mp3 = new File(outputMp3Path);
-            if (mp3.exists()) mp3.delete();
+//            // 5. 清理临时文件
+//            File mp3 = new File(outputMp3Path);
+//            if (mp3.exists()) mp3.delete();
+            log.info("🎵 [AI策略] 已完成处理，临时文件未删除以便调试: {}", outputMp3Path);
         }
     }
 
@@ -73,7 +81,7 @@ public class AliyunDeepSeekStrategy implements AiAnalysisStrategy {
         Process process = null;
         try {
             List<String> command = new ArrayList<>();
-            command.add("ffmpeg");
+            command.add(ffmpegPath);
             command.add("-y");
             command.add("-i");
             command.add(inputPath);
