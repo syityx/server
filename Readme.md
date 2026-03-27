@@ -49,3 +49,6 @@ _version_: `7.1.1-essentials_build-www.gyan.dev`
  - RocketMQ: `9876`
  - MinIO: `9000` (API), `9091` (Console)
 
+## Link
+ - https://cloud.siliconflow.cn/
+
