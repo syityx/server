@@ -1,7 +1,9 @@
 package com.example.server.controller;
 
+import com.example.server.consumer.VideoAnalysisConsumer;
 import com.example.server.dto.AnalysisTaskMsg;
 import com.example.server.entity.MediaFile;
+import com.example.server.enums.AiStatus;
 import com.example.server.mapper.MediaFileMapper;
 import com.example.server.service.AiService;
 import com.example.server.strategy.AiAnalysisStrategy;
@@ -88,19 +90,37 @@ public class DebugController {
             //查库校验
             MediaFile file = mediaFileMapper.selectById(id);
             if (file == null) return "文件不存在";
-            if (file.getAiSummary() != null && file.getAiSummary().contains("正在")) {
-                // TODO 有重复投递风险，contains不足以完全避免，但已经能防大多数重复点击了；如果要完全避免，需要在数据库里专门加个字段来标记“分析中”，并且在投递消息前后都检查这个字段，确保原子性。
-                return "任务已在后台运行，无需重复提交";
+
+            // 【幂等判断】基于 ai_status 字段而非文本 contains，杜绝误判
+            String currentStatus = file.getAiStatus();
+            if (AiStatus.QUEUED.name().equals(currentStatus)) {
+                return "⚠️ 任务已排队，请勿重复提交";
+            }
+            if (AiStatus.RUNNING.name().equals(currentStatus)) {
+                return "⚠️ 任务正在执行中，请稍后查看结果";
+            }
+            if (AiStatus.SUCCEEDED.name().equals(currentStatus)) {
+                return "✅ 分析已完成，无需重复提交";
+            }
+            // FAILED 且未超出最大重试次数，允许重新入队；已达上限则拒绝
+            int maxAttempts = VideoAnalysisConsumer.MAX_ATTEMPTS;
+            if (AiStatus.FAILED.name().equals(currentStatus)) {
+                int attempts = file.getAiAttempts() == null ? 0 : file.getAiAttempts();
+                if (attempts >= maxAttempts) {
+                    return "❌ 任务已达最大重试次数（" + maxAttempts + " 次），请联系管理员";
+                }
+                // 允许重试：走下方流程重新入队
             }
 
-            //更新状态
+            // 【设置 QUEUED 状态】在投递 MQ 前先落库，防止重复投递
+            file.setAiStatus(AiStatus.QUEUED.name());
             file.setAiSummary("[MQ] 已进入消息队列，等待调度...");
             mediaFileMapper.updateById(file);
             String userIdKey = (file.getUserId() == null) ? "anon" : String.valueOf(file.getUserId());
             redisTemplate.delete("media:list:user:" + userIdKey);
 
             //发送消息
-            AnalysisTaskMsg msg = new AnalysisTaskMsg(id, "START_ANALYSIS");
+            AnalysisTaskMsg msg = new AnalysisTaskMsg(id, AnalysisTaskMsg.ACTION_START_ANALYSIS);
             rocketMQTemplate.convertAndSend("video-analysis-topic", msg);
 
             return "✅ 任务已投递至 RocketMQ！";
